@@ -328,16 +328,27 @@ let failed_to_delete_sandbox ~warn dir reason =
 
 let destroy t =
   maybe_async (fun () ->
+    let max_retry_count = 30 in
     let rec loop cnt =
       try Path.rm_rf (Path.build t.dir) with
       | Sys_error e -> failed_to_delete_sandbox ~warn:false t.dir (Pp.verbatim e)
       | Unix.Unix_error (error, syscall, arg) ->
-        let warn = error = Unix.EACCES && cnt > 0 in
+        let warn = error = Unix.EACCES in
+        let sleep_delay_seconds = 1.0 in
         failed_to_delete_sandbox
           ~warn
           t.dir
           (Unix_error.Detailed.pp (Unix_error.Detailed.create error ~syscall ~arg));
-        loop (cnt - 1)
+        if cnt <= max_retry_count then
+          Dune_util.Log.info
+            [ Pp.textf
+                "Sleeping %.1f seconds and retrying (attempt %d/%d)..."
+                sleep_delay_seconds
+                cnt
+                max_retry_count
+            ];
+          Unix.sleepf sleep_delay_seconds;
+          loop (cnt + 1)
     in
-    loop (if Sys.win32 then 30 else 0))
+    loop (if Sys.win32 then 1 else max_retry_count + 1))
 ;;
