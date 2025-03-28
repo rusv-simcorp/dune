@@ -333,7 +333,7 @@ let destroy t =
       try Path.rm_rf (Path.build t.dir) with
       | Sys_error e -> failed_to_delete_sandbox ~warn:false t.dir (Pp.verbatim e)
       | Unix.Unix_error (error, syscall, arg) ->
-        let warn = error = Unix.EACCES in
+        let warn = error = Unix.EACCES || error = Unix.ENOTEMPTY in
         let sleep_delay_seconds = 1.0 in
         failed_to_delete_sandbox
           ~warn
